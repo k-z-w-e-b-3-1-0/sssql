@@ -86,3 +86,28 @@ python -m sql_vectorizer.indexer search samples/sql_index.pkl "SELECT status, CO
 ```
 
 生成されたインデックスを使って、お好きなSQLで検索してみてください。
+
+## 使い方（Web API）
+
+CLIだけでなく、FastAPIベースのWeb APIを用意しており、HTTP経由で検索を実行できます。
+
+1. 事前にインデックスを作成しておきます（例: `samples/sql_index.pkl`）。
+2. 以下のようにアプリケーションを起動します。
+
+   ```bash
+   uvicorn sql_vectorizer.webapi:app --reload
+   ```
+
+   既定ではリクエストボディに`index`フィールドを指定することで、任意のインデックスファイルを利用できます。特定のインデックスを常に使用したい場合は、`sql_vectorizer.webapi:create_app("path/to/index.pkl")`のようにアプリを生成し、Uvicornなどに渡してください。
+
+3. `POST /search` エンドポイントに対して次のようなJSONを送信すると、CLIと同じ検索結果を取得できます。
+
+   ```json
+   {
+     "query": "SELECT status, COUNT(*) FROM orders GROUP BY status",
+     "top_k": 5,
+     "index": "samples/sql_index.pkl"
+   }
+   ```
+
+   レスポンスは、検索結果のパスとスコアの配列を含むJSONになります。
