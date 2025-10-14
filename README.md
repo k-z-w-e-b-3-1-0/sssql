@@ -61,3 +61,28 @@ for path, score in index.search("SELECT * FROM users", top_k=3):
 4. 類似度スコアとともに、最も近いSQLファイルのパスが表示されます。
 
 これで、フォルダ内のSQLスニペットを素早く比較・検索する準備が整いました。必要に応じて`--top-k`や`--encoding`などのオプションを調整してください。
+
+### 付属サンプル
+
+`samples/sql`ディレクトリには以下のようなサンプルクエリが用意されています。
+
+- `orders_by_status.sql`
+- `customers_active.sql`
+- `top_products_by_revenue.sql`
+- `monthly_sales_summary.sql`
+- `overdue_invoices.sql`
+- `user_login_activity.sql`
+- `inventory_low_stock.sql`
+- `employee_performance_scores.sql`
+- `revenue_by_region.sql`
+- `cancellations_by_reason.sql`
+- `product_returns.sql`
+
+これらのSQLファイルを利用してすぐに検索を試したい場合は、前述のチュートリアルと同様に`samples/sql`をインデックス化してください。例えば次のようにコマンドを実行すると、`samples/sql_index.pkl`と`sql_index.json`が生成されます。
+
+```bash
+python -m sql_vectorizer.indexer index samples/sql --output samples/sql_index.pkl
+python -m sql_vectorizer.indexer search samples/sql_index.pkl "SELECT status, COUNT(*) FROM orders GROUP BY status"
+```
+
+生成されたインデックスを使って、お好きなSQLで検索してみてください。

@@ -2,22 +2,99 @@
 from __future__ import annotations
 
 import json
+import math
 import pickle
+import re
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Sequence, Tuple
 
-import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+
+class SimpleTfidfVectorizer:
+    """A lightweight TF-IDF vectorizer tailored for SQL token patterns."""
+
+    _token_pattern = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+    def __init__(self, *, stop_words: Sequence[str] | None = None) -> None:
+        self.stop_words = {word.lower() for word in stop_words} if stop_words else None
+        self.vocabulary_: dict[str, int] = {}
+        self.idf_: List[float] = []
+
+    # pickle support -----------------------------------------------------
+    def __getstate__(self) -> dict:
+        return {
+            "stop_words": self.stop_words,
+            "vocabulary_": self.vocabulary_,
+            "idf_": self.idf_,
+        }
+
+    def __setstate__(self, state: dict) -> None:
+        self.stop_words = state["stop_words"]
+        self.vocabulary_ = state["vocabulary_"]
+        self.idf_ = state["idf_"]
+
+    # public API ---------------------------------------------------------
+    def fit_transform(self, documents: Sequence[str]) -> List[List[float]]:
+        tokenized = [self._tokenize(doc) for doc in documents]
+        self._build_vocabulary(tokenized)
+        self._compute_idf(tokenized)
+        return [self._tfidf_vector(tokens) for tokens in tokenized]
+
+    def transform(self, documents: Sequence[str]) -> List[List[float]]:
+        return [self._tfidf_vector(self._tokenize(doc)) for doc in documents]
+
+    # helpers -------------------------------------------------------------
+    def _tokenize(self, text: str) -> List[str]:
+        tokens = [match.group(0).lower() for match in self._token_pattern.finditer(text)]
+        if self.stop_words:
+            tokens = [token for token in tokens if token not in self.stop_words]
+        return tokens
+
+    def _build_vocabulary(self, tokenized_docs: Sequence[Sequence[str]]) -> None:
+        vocabulary: dict[str, int] = {}
+        for tokens in tokenized_docs:
+            for token in tokens:
+                if token not in vocabulary:
+                    vocabulary[token] = len(vocabulary)
+        self.vocabulary_ = vocabulary
+
+    def _compute_idf(self, tokenized_docs: Sequence[Sequence[str]]) -> None:
+        doc_count = len(tokenized_docs)
+        df = [0] * len(self.vocabulary_)
+        for tokens in tokenized_docs:
+            seen: set[str] = set()
+            for token in tokens:
+                if token in self.vocabulary_ and token not in seen:
+                    df[self.vocabulary_[token]] += 1
+                    seen.add(token)
+        self.idf_ = [
+            math.log((1 + doc_count) / (1 + freq)) + 1.0 if freq else 0.0
+            for freq in df
+        ]
+
+    def _tfidf_vector(self, tokens: Sequence[str]) -> List[float]:
+        if not self.vocabulary_:
+            return []
+
+        counts = Counter(token for token in tokens if token in self.vocabulary_)
+        total = sum(counts.values())
+        vector = [0.0] * len(self.vocabulary_)
+        if total == 0:
+            return vector
+        for token, term_freq in counts.items():
+            idx = self.vocabulary_[token]
+            idf = self.idf_[idx] if idx < len(self.idf_) else 0.0
+            vector[idx] = (term_freq / total) * idf
+        return vector
 
 
 @dataclass
 class SqlVectorIndex:
     """Represents a TF-IDF index of SQL files."""
 
-    vectorizer: TfidfVectorizer
-    matrix: np.ndarray
+    vectorizer: SimpleTfidfVectorizer
+    matrix: List[List[float]]
     file_paths: List[Path]
 
     @classmethod
@@ -38,12 +115,8 @@ class SqlVectorIndex:
             raise ValueError(f"No .sql files found under {folder}")
 
         documents = [_read_sql_file(path, encoding=encoding) for path in sql_files]
-        vectorizer = TfidfVectorizer(
-            stop_words=stop_words,
-            token_pattern=r"[A-Za-z_][A-Za-z0-9_]*",
-            lowercase=True,
-        )
-        matrix = vectorizer.fit_transform(documents).astype(np.float32)
+        vectorizer = SimpleTfidfVectorizer(stop_words=stop_words)
+        matrix = vectorizer.fit_transform(documents)
 
         return cls(vectorizer=vectorizer, matrix=matrix, file_paths=sql_files)
 
@@ -87,13 +160,14 @@ class SqlVectorIndex:
         """Return the ``top_k`` most similar SQL files to ``query``."""
         if not query.strip():
             raise ValueError("Query must not be empty")
-        query_vec = self.vectorizer.transform([query]).astype(np.float32)
-        similarities = cosine_similarity(query_vec, self.matrix)[0]
-        top_indices = np.argsort(similarities)[::-1][:top_k]
+        query_vec = self.vectorizer.transform([query])[0]
+        similarities = _cosine_similarity(query_vec, self.matrix)
+        ranked = sorted(
+            enumerate(similarities), key=lambda item: item[1], reverse=True
+        )[:top_k]
         results: List[Tuple[Path, float] | Path] = []
-        for idx in top_indices:
+        for idx, score in ranked:
             path = self.file_paths[idx]
-            score = float(similarities[idx])
             if include_scores:
                 results.append((path, score))
             else:
@@ -132,6 +206,22 @@ def vectorize_folder(
 def load_index(path: str | Path) -> SqlVectorIndex:
     """Convenience wrapper around :meth:`SqlVectorIndex.load`."""
     return SqlVectorIndex.load(Path(path))
+
+
+def _cosine_similarity(query: Sequence[float], matrix: Sequence[Sequence[float]]) -> List[float]:
+    query_norm = math.sqrt(sum(value * value for value in query))
+    if query_norm == 0:
+        return [0.0 for _ in matrix]
+
+    similarities: List[float] = []
+    for row in matrix:
+        dot = sum(a * b for a, b in zip(query, row))
+        row_norm = math.sqrt(sum(value * value for value in row))
+        if row_norm == 0:
+            similarities.append(0.0)
+        else:
+            similarities.append(dot / (query_norm * row_norm))
+    return similarities
 
 
 def main(argv: Sequence[str] | None = None) -> None:

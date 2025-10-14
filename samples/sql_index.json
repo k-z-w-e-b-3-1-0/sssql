@@ -1,0 +1,15 @@
+{
+  "file_paths": [
+    "/workspace/sssql/samples/sql/cancellations_by_reason.sql",
+    "/workspace/sssql/samples/sql/customers_active.sql",
+    "/workspace/sssql/samples/sql/employee_performance_scores.sql",
+    "/workspace/sssql/samples/sql/inventory_low_stock.sql",
+    "/workspace/sssql/samples/sql/monthly_sales_summary.sql",
+    "/workspace/sssql/samples/sql/orders_by_status.sql",
+    "/workspace/sssql/samples/sql/overdue_invoices.sql",
+    "/workspace/sssql/samples/sql/product_returns.sql",
+    "/workspace/sssql/samples/sql/revenue_by_region.sql",
+    "/workspace/sssql/samples/sql/top_products_by_revenue.sql",
+    "/workspace/sssql/samples/sql/user_login_activity.sql"
+  ]
+}
