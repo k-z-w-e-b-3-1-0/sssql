@@ -1,49 +1,63 @@
-# SQL Similarity Toolkit
+# SQL類似検索ツールキット
 
-This repository provides utilities for vectorising SQL files and searching for
-similar SQL statements.
+このリポジトリは、指定したフォルダ配下のSQLファイルをベクトル化し、類似したSQLを検索するためのユーティリティを提供します。
 
-## Features
+## 特長
 
-1. Index every `.sql` file under a target folder using a TF-IDF vector space
-   model and store the result on disk.
-2. Compare an input SQL statement with the indexed collection to retrieve the
-   most similar SQL files.
+1. 指定フォルダ内のすべての`.sql`ファイルをTF-IDFベースのベクトル空間モデルでインデックス化し、結果をディスクに保存できます。
+2. 入力した任意のSQL文とインデックス済みコレクションを比較し、類似度の高いSQLファイルを取得できます。
 
-## Usage
+## 使い方（CLI）
 
-The toolkit exposes a small command line interface:
+本ツールキットはシンプルなコマンドラインインターフェースを提供しています。
 
 ```bash
 python -m sql_vectorizer.indexer index path/to/sql/folder --output sql_index.pkl
 ```
 
-The command above creates two files:
+上記コマンドは次の2つのファイルを生成します。
 
-* `sql_index.pkl` – a pickled representation of the TF-IDF model and the vector
-  matrix.
-* `sql_index.json` – metadata listing the indexed file paths.
+- `sql_index.pkl` – TF-IDFモデルとベクトル行列をpickle形式で保存したファイル。
+- `sql_index.json` – インデックス対象となったSQLファイルのパスをまとめたメタデータ。
 
-To search for similar SQL files with a query:
+類似SQLを検索する場合は以下のように実行します。
 
 ```bash
 python -m sql_vectorizer.indexer search sql_index.pkl "SELECT * FROM users"
 ```
 
-Use `--top-k` to control how many results are shown.
+結果件数は`--top-k`で制御できます。
 
-## Library API
+## ライブラリAPI
 
-You can also integrate the functionality directly into Python code:
+Pythonコードから直接利用することもできます。
 
 ```python
 from sql_vectorizer import vectorize_folder, load_index
 
-# Build or load an index
+# インデックスを構築または読み込む
 index = vectorize_folder("path/to/sql", output="sql_index.pkl")
-# or index = load_index("sql_index.pkl")
+# 既存のインデックスを読み込む場合
+# index = load_index("sql_index.pkl")
 
-# Search for similar SQL strings
+# 類似SQLを検索
 for path, score in index.search("SELECT * FROM users", top_k=3):
     print(path, score)
 ```
+
+## チュートリアル
+
+以下では、付属のサンプルSQLファイルを利用して基本的なワークフローを体験します。
+
+1. サンプルフォルダを指定してインデックス化します。
+   ```bash
+   python -m sql_vectorizer.indexer index samples/sql --output tutorial_index.pkl
+   ```
+2. 作成された`tutorial_index.pkl`と`tutorial_index.json`が確認できるはずです。
+3. 任意のSQLで検索します。以下は`orders_by_status.sql`を想定した問い合わせ例です。
+   ```bash
+   python -m sql_vectorizer.indexer search tutorial_index.pkl "SELECT status, COUNT(*) FROM orders GROUP BY status"
+   ```
+4. 類似度スコアとともに、最も近いSQLファイルのパスが表示されます。
+
+これで、フォルダ内のSQLスニペットを素早く比較・検索する準備が整いました。必要に応じて`--top-k`や`--encoding`などのオプションを調整してください。
