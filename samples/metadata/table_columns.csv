@@ -1,0 +1,9 @@
+table,column,japanese_name
+orders,,受注テーブル 注文情報
+orders,status,注文ステータス
+orders,total_orders,注文数 合計注文
+customers,is_active,アクティブフラグ
+customers,,顧客マスタ 顧客一覧
+products,price,商品単価 価格
+sales,amount,売上金額 売上額
+inventory,quantity,在庫数量 在庫数
